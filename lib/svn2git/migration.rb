@@ -11,24 +11,24 @@ module Svn2Git
     def initialize(args)
       @options = parse(args)
       if @options[:rebase]
-         show_help_message('Too many arguments') if args.size > 0
-         verify_working_tree_is_clean
+        show_help_message('Too many arguments') if args.size > 0
+        verify_working_tree_is_clean
       else
-         show_help_message('Missing SVN_URL parameter') if args.empty?
-         show_help_message('Too many arguments') if args.size > 1
-         @url = args.first
+        show_help_message('Missing SVN_URL parameter') if args.empty? && @options[:clone]
+        show_help_message('Too many arguments') if args.size > 1
+        @url = args.first
       end
     end
 
     def run!
-      if @options[:rebase]
+      if @options[:rebase] || !@options[:clone]
         get_branches
       else
         clone!
       end
       fix_tags
       fix_branches
-      fix_trunk
+      #fix_trunk
       optimize_repos
     end
 
@@ -45,6 +45,7 @@ module Svn2Git
       options[:exclude] = []
       options[:revision] = nil
       options[:username] = nil
+      options[:clone] = true
 
       if File.exists?(File.expand_path(DEFAULT_AUTHORS_FILE))
         options[:authors] = DEFAULT_AUTHORS_FILE
@@ -121,6 +122,10 @@ module Svn2Git
           options[:verbose] = true
         end
 
+        opts.on('--no-clone', 'Do not clone from svn, just fix up the current repo') do
+          options[:clone] = false
+        end
+
         opts.separator ""
 
         # No argument, shows at tail.  This will print an options summary.
@@ -135,7 +140,7 @@ module Svn2Git
       options
     end
 
-  private
+    private
 
     def clone!
       trunk = @options[:trunk]
@@ -217,15 +222,17 @@ module Svn2Git
         date    = run_command("git log -1 --pretty=format:'%ci' #{tag}")
         author  = run_command("git log -1 --pretty=format:'%an' #{tag}")
         email   = run_command("git log -1 --pretty=format:'%ae' #{tag}")
-        run_command("git config --local user.name '#{escape_quotes(author)}'")
-        run_command("git config --local user.email '#{escape_quotes(email)}'")
-        run_command("GIT_COMMITTER_DATE='#{escape_quotes(date)}' git tag -a -m '#{escape_quotes(subject)}' '#{escape_quotes(id)}' '#{escape_quotes(tag)}'")
-        run_command("git branch -d -r #{tag}")
-      end
 
-      unless @tags.empty?
-        run_command("git config --local --unset user.name")
-        run_command("git config --local --unset user.email")
+        cmd = ''
+        cmd << "GIT_COMMITTER_DATE='#{escape_quotes(date)}' "
+        cmd << "GIT_AUTHOR_NAME='#{escape_quotes(author)}' "
+        cmd << "GIT_AUTHOR_EMAIL='#{escape_quotes(email)}' "
+        cmd << "GIT_COMMITTER_NAME='#{escape_quotes(author)}' "
+        cmd << "GIT_COMMITTER_EMAIL='#{escape_quotes(email)}' "
+        cmd << "git tag -a -m '#{escape_quotes(subject)}' '#{escape_quotes(id)}' '#{escape_quotes(tag)}'"
+
+        run_command(cmd)
+        run_command("git branch -d -r #{tag}")
       end
     end
 
@@ -234,22 +241,22 @@ module Svn2Git
       svn_branches.delete_if { |b| b.strip !~ %r{^svn\/} }
 
       if @options[:rebase]
-         run_command("git svn fetch")
+        run_command("git svn fetch")
       end
 
       svn_branches.each do |branch|
         branch = branch.gsub(/^svn\//,'').strip
         if @options[:rebase] && (@local.include?(branch) || branch == 'trunk')
-           lbranch = branch
-           lbranch = 'master' if branch == 'trunk'
-           run_command("git checkout -f #{lbranch}")
-           run_command("git rebase remotes/svn/#{branch}")
-           next
+          lbranch = branch
+          lbranch = 'master' if branch == 'trunk'
+          run_command("git checkout -f #{lbranch}")
+          run_command("git rebase remotes/svn/#{branch}")
+          next
         end
 
-        next if branch == 'trunk' || @local.include?(branch)
-        run_command("git branch --track #{branch} remotes/svn/#{branch}")
-        run_command("git checkout #{branch}")
+        next if @local.include?(branch)
+        run_command("git branch #{branch} remotes/svn/#{branch}")
+        run_command("git branch -d -r svn/#{branch}")
       end
     end
 
@@ -281,8 +288,8 @@ module Svn2Git
         end
       end
 
-      unless $?.exitstatus == 0
-        $stderr.puts "command failed:\n#{cmd}"
+      unless $?.success?
+        $stderr.puts "command failed (#{$?.exitstatus}):\n#{cmd}"
         exit 1
       end
 
@@ -303,7 +310,7 @@ module Svn2Git
       status = run_command('git status --porcelain --untracked-files=no')
       unless status.strip == ''
         puts 'You have local pending changes.  The working tree must be clean in order to continue.'
-        exit -1
+        exit(-1)
       end
     end
 
@@ -314,3 +321,7 @@ module Svn2Git
   end
 end
 
+if $0 == __FILE__ then
+  migration = Svn2Git::Migration.new(ARGV)
+  migration.run!
+end

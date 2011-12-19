@@ -46,6 +46,7 @@ module Svn2Git
       options[:revision] = nil
       options[:username] = nil
       options[:clone] = true
+      options[:bare] = false
 
       if File.exists?(File.expand_path(DEFAULT_AUTHORS_FILE))
         options[:authors] = DEFAULT_AUTHORS_FILE
@@ -59,6 +60,9 @@ module Svn2Git
         opts.separator ''
         opts.separator 'Specific options:'
 
+        opts.on('--bare', 'Make a bare GIT repository') do
+          options[:bare] = true
+        end
         opts.on('--rebase', 'Instead of cloning a new project, rebase an existing one against SVN') do
           options[:rebase] = true
         end
@@ -154,9 +158,14 @@ module Svn2Git
       revision = @options[:revision]
       username = @options[:username]
 
+      cmd = "git "
+      if @options[:bare]
+        run_command('git --bare init')
+        cmd += "--bare "
+      end
       if rootistrunk
         # Non-standard repository layout.  The repository root is effectively 'trunk.'
-        cmd = "git svn init --prefix=svn/ "
+        cmd += "svn init --prefix=svn/ "
         cmd += "--username=#{username} " unless username.nil?
         cmd += "--no-metadata " unless metadata
         if nominimizeurl
@@ -166,7 +175,7 @@ module Svn2Git
         run_command(cmd)
 
       else
-        cmd = "git svn init --prefix=svn/ "
+        cmd += "svn init --prefix=svn/ "
 
         # Add each component to the command that was passed as an argument.
         cmd += "--username=#{username} " unless username.nil?

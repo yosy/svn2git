@@ -56,7 +56,7 @@ module Svn2Git
 
       # Parse the command-line arguments.
       @opts = OptionParser.new do |opts|
-        opts.banner = 'Usage: svn2git SVN_URL [repository_dir] [options]'
+        opts.banner = 'Usage: svn2git SVN_URL [options]'
 
         opts.separator ''
         opts.separator 'Specific options:'

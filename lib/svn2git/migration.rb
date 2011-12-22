@@ -171,8 +171,8 @@ module Svn2Git
         _cmd +=  repos unless repos == ''
         run_command(_cmd)
         cmd += "--bare "
-        cmd += "--git-dir='#{repos}' "
       end
+      cmd += "--git-dir='#{repos}' " unless repos == ''
       if rootistrunk
         # Non-standard repository layout.  The repository root is effectively 'trunk.'
         cmd += "svn init --prefix=svn/ "

@@ -1,12 +1,14 @@
 require 'rake'
 require 'rake/gempackagetask'
+require 'lib/svn2git/version'
 
 begin
   require 'jeweler'
   Jeweler::Tasks.new do |spec|
     spec.name = "svn2git"
+    spec.version = Svn2Git::VERSION
     spec.summary = "A tool for migrating svn projects to git"
-    spec.authors = ["James Coglan", "Kevin Menard"]
+    spec.authors = ["James Coglan", "Kevin Menard", "Riceball LEE"]
     spec.homepage = "https://www.negativetwenty.net/redmine/projects/svn2git"
     spec.email = "nirvdrum@gmail.com"
   end

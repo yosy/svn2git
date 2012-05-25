@@ -1,5 +1,6 @@
 require 'optparse'
 require 'pp'
+require 'fileutils'
 
 module Svn2Git
   DEFAULT_AUTHORS_FILE = "~/.svn2git/authors"
@@ -47,7 +48,7 @@ module Svn2Git
       options[:username] = nil
       options[:clone] = true
       options[:bare] = false
-      options[:repository] = '';
+      options[:target] = '';
 
       if File.exists?(File.expand_path(DEFAULT_AUTHORS_FILE))
         options[:authors] = DEFAULT_AUTHORS_FILE
@@ -59,14 +60,22 @@ module Svn2Git
         opts.banner = 'Usage: svn2git SVN_URL [options]'
 
         opts.separator ''
+        opts.separator "Version: #{Svn2Git::VERSION}"
+        opts.separator ''
         opts.separator 'Specific options:'
-
-        opts.on('-r', '--repository DIRECTORY', 'The target GIT repository directory') do |repos|
-          options[:repository] = repos
-        end
 
         opts.on('--bare', 'Make a bare GIT repository') do
           options[:bare] = true
+        end
+
+        opts.on('-r', '--repository DIRECTORY', 'The target GIT repository directory or working directory') do |target|
+          if options[:bare]
+            options[:target]  = "--git-dir='#{target}' "
+          else
+            FileUtils::mkdir_p target unless File.exist?(target)
+            options[:target]  = "--git-dir='#{File.join(target, '.git')}' "
+            options[:target] += "--work-tree='#{target}' "
+          end
         end
 
         opts.on('--rebase', 'Instead of cloning a new project, rebase an existing one against SVN') do
@@ -163,16 +172,16 @@ module Svn2Git
       exclude = @options[:exclude]
       revision = @options[:revision]
       username = @options[:username]
-      repos = @options[:repository] 
+      target_dir = @options[:target]
 
       cmd = "git "
       if @options[:bare]
         _cmd = 'git --bare init '
-        _cmd +=  repos unless repos == ''
+        _cmd += target_dir unless target_dir == ''
         run_command(_cmd)
         cmd += "--bare "
       end
-      cmd += "--git-dir='#{repos}' " unless repos == ''
+      cmd += target_dir unless target_dir == ''
       if rootistrunk
         # Non-standard repository layout.  The repository root is effectively 'trunk.'
         cmd += "svn init --prefix=svn/ "
@@ -204,13 +213,13 @@ module Svn2Git
 
       if not authors.nil?
         cmd = "git "
-        cmd += "--git-dir='#{repos}' " unless repos == ''
+        cmd += target_dir unless target_dir == ''
         cmd += "config --local svn.authorsfile #{authors}"
         run_command(cmd)
       end
 
       cmd = "git "
-      cmd += "--git-dir='#{repos}' " unless repos == ''
+      cmd += target_dir unless target_dir == ''
       cmd += 'svn fetch '
       cmd += "-r #{revision}:HEAD " unless revision.nil?
       unless exclude.empty?
@@ -231,11 +240,11 @@ module Svn2Git
     end
 
     def get_branches
-      repos = @options[:repository]
+      target_dir = @options[:target]
       # Get the list of local and remote branches, taking care to ignore console color codes and ignoring the
       # '*' character used to indicate the currently selected branch.
       cmd = 'git '
-      cmd += "--git-dir='#{repos}' " unless repos == ''
+      cmd += target_dir unless target_dir == ''
       @local = run_command("#{cmd} branch -l --no-color").split(/\n/).collect{ |b| b.gsub(/\*/,'').strip }
       @remote = run_command("#{cmd} branch -r --no-color").split(/\n/).collect{ |b| b.gsub(/\*/,'').strip }
 
@@ -244,10 +253,10 @@ module Svn2Git
     end
 
     def fix_tags
-       repos = @options[:repository]
- 
+       target_dir = @options[:target]
+
        _cmd = 'git '
-       _cmd += "--git-dir='#{repos}' " unless repos == ''
+       _cmd += target_dir unless target_dir == ''
        @tags.each do |tag|
         tag = tag.strip
         id      = tag.gsub(%r{^svn\/tags\/}, '').strip
@@ -270,10 +279,10 @@ module Svn2Git
     end
 
     def fix_branches
-      repos = @options[:repository]
- 
+      target_dir = @options[:target]
+
       _cmd = 'git '
-      _cmd += "--git-dir='#{repos}' " unless repos == ''
+      _cmd += target_dir unless target_dir == ''
       svn_branches = @remote - @tags
       svn_branches.delete_if { |b| b.strip !~ %r{^svn\/} }
 
@@ -298,10 +307,10 @@ module Svn2Git
     end
 
     def fix_trunk
-       repos = @options[:repository]
+       target_dir = @options[:target]
        _cmd = 'git '
-       _cmd += "--git-dir='#{repos}' " unless repos == ''
- 
+       _cmd += target_dir unless target_dir == ''
+
       trunk = @remote.find { |b| b.strip == 'trunk' }
       if trunk && ! @options[:rebase]
         run_command("#{_cmd} checkout svn/trunk")
@@ -313,10 +322,10 @@ module Svn2Git
     end
 
     def optimize_repos
-      repos = @options[:repository]
- 
+      target_dir = @options[:target]
+
       _cmd = 'git '
-      _cmd += "--git-dir='#{repos}' " unless repos == ''
+      _cmd += target_dir unless target_dir == ''
 
       run_command("#{_cmd} gc")
     end
@@ -353,10 +362,10 @@ module Svn2Git
     end
 
     def verify_working_tree_is_clean
-      repos = @options[:repository]
- 
+      target_dir = @options[:target]
+
       _cmd = 'git '
-      _cmd += "--git-dir='#{repos}' " unless repos == ''
+      _cmd += target_dir unless target_dir == ''
 
       status = run_command('#{_cmd} status --porcelain --untracked-files=no')
       unless status.strip == ''

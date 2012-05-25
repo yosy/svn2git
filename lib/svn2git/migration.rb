@@ -29,7 +29,7 @@ module Svn2Git
       end
       fix_tags
       fix_branches
-      #fix_trunk
+      fix_trunk
       optimize_repos
     end
 

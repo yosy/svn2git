@@ -120,6 +120,10 @@ one of them.
 
         $ svn2git http://svn.example.com/path/to/repo --revision <<starting_revision_number>>
 
+9. clone the svn repo to a git bare repository with specified directory myrepos.
+
+        $ svn2git -r myrepos --bare http://svn.example.com/path/to/repo
+
 The above will create a git repository in the current directory with the git
 version of the svn repository. Hence, you need to make a directory that you
 want your new git repo to exist in, change into it and then run one of the

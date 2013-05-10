@@ -14,8 +14,7 @@ Gem::Specification.new do |s|
   s.executables = ["svn2git"]
   s.extra_rdoc_files = [
     "ChangeLog.markdown",
-    "README.markdown",
-    "TODO"
+    "README.markdown"
   ]
   s.files = [
     "ChangeLog.markdown",
